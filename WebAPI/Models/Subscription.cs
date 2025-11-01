@@ -1,4 +1,6 @@
-﻿namespace WebAPI.Models
+﻿using System;
+
+namespace WebAPI.Models
 {
     public class Subscription
     {
@@ -6,7 +8,7 @@
         public string ResourceName { get; set; }
         public int Evt { get; set; } //1-creation, 2-delçetion
         public string Endpoint { get; set; }
-        public string CreationDatetime { get; set; }
+        public DateTime CreationDatetime { get; set; }
         public int ContainerId { get; set; }
     }
 }
