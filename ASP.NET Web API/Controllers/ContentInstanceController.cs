@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 
-namespace ASP.NET_Web_API.Controllers
+namespace WebAPI.Controllers
 {
     public class ContentInstanceController : ApiController
     {

@@ -1,4 +1,4 @@
-﻿namespace ASP.NET_Web_API.Models
+﻿namespace WebAPI.Models
 {
     public class Application
     {
