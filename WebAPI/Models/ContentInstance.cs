@@ -1,14 +1,26 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 
 namespace WebAPI.Models
 {
     public class ContentInstance
     {
-        public int Id { get; set; }
+        [JsonProperty("resource-name")]
         public string ResourceName { get; set; }
+
+        [JsonProperty("creation-datetime")]
         public DateTime CreationDatetime { get; set; }
-        public int ContainerId { get; set; }
+
+        [JsonProperty("content")]
         public string Content { get; set; }
+
+        [JsonProperty("content-type")]
         public string ContentType { get; set; }
+
+        [JsonIgnore]
+        public string ParentContainerName { get; set; }
+
+        [JsonIgnore]
+        public string ParentAppName { get; set; }
     }
 }

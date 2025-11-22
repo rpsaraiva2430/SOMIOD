@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data.SqlClient;
 using System.Linq;
+using System.Net;
 using System.Web.Http;
+using WebAPI.Models;
 
 namespace WebAPI.Controllers
 {
@@ -12,62 +14,102 @@ namespace WebAPI.Controllers
     {
         private readonly string connectionString = ConfigurationManager.ConnectionStrings["SomiodDatabase"].ConnectionString;
 
-        // GET /api/somiod or /api/somiod/{resourceName}
-        [HttpGet, Route("{resourceName?}")]
-        public IHttpActionResult Get(string resourceName = null)
+        // GET ALL
+        [HttpGet, Route("")]
+        public IHttpActionResult GetAll()
         {
-            // Discovery
             if (Request.Headers.Contains("somiod-discovery"))
             {
                 var resType = Request.Headers.GetValues("somiod-discovery").FirstOrDefault();
-                if (resType == "application")
-                    return Ok(GetAllApplicationPaths());
-                else
-                    return BadRequest("Only 'application' discovery is supported in this controller.");
+                if (resType == "application") return Ok(GetAllApplicationPaths());
+                return BadRequest("Only 'application' discovery is supported on the base URL.");
             }
-
-            // GET normal
-            if (string.IsNullOrEmpty(resourceName))
-                return Ok(GetAllApplications());
-            else
-            {
-                var app = GetApplication(resourceName);
-                if (app == null)
-                    return NotFound();
-                return Ok(app);
-            }
+            return Ok(GetAllApplications());
         }
 
-        // POST /api/somiod
-        [HttpPost, Route("")]
-        public IHttpActionResult Post([FromBody] ApplicationModel app)
+        // GET SINGLE APP ou DISCOVERY DE CONTENTORES
+        [HttpGet, Route("{resourceName:regex(^(?!container|subscription).*$)}")]
+        public IHttpActionResult GetSingle(string resourceName)
         {
-            if (app == null)
-                return BadRequest("Application data is required.");
+            var app = GetApplication(resourceName);
+            if (app == null) return NotFound();
 
-            // Gerar resource-name se não fornecido
-            if (string.IsNullOrWhiteSpace(app.resource_name))
-                app.resource_name = $"app-{Guid.NewGuid().ToString().Substring(0, 8)}";
+            // Discovery de Contentores
+            if (Request.Headers.Contains("somiod-discovery"))
+            {
+                var resType = Request.Headers.GetValues("somiod-discovery").FirstOrDefault();
+                if (resType == "container")
+                {
+                    return Ok(GetContainersForApp(resourceName));
+                }
+                return BadRequest("Discovery type not supported for application context.");
+            }
 
-            app.creation_datetime = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss");
+            return Ok(app);
+        }
+
+        // POST APPLICATION
+        [HttpPost, Route("")]
+        public IHttpActionResult Post([FromBody] Application app)
+        {
+            if (app == null) return BadRequest("Data required.");
+            if (string.IsNullOrWhiteSpace(app.ResourceName))
+                app.ResourceName = $"app-{Guid.NewGuid().ToString().Substring(0, 8)}";
+
+            app.CreationDatetime = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss");
 
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
-                string query = "INSERT INTO Application (resource_name, creation_datetime) VALUES (@Name, @Datetime)";
+                string query = "INSERT INTO Application (resource_name, creation_datetime) VALUES (@Name, @Date)";
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("@Name", app.resource_name);
-                    cmd.Parameters.AddWithValue("@Datetime", app.creation_datetime);
-                    cmd.ExecuteNonQuery();
+                    cmd.Parameters.AddWithValue("@Name", app.ResourceName);
+                    cmd.Parameters.AddWithValue("@Date", app.CreationDatetime);
+                    try { cmd.ExecuteNonQuery(); }
+                    catch (SqlException ex) when (ex.Number == 2627) { return Conflict(); }
                 }
             }
-
-            return Created($"/api/somiod/{app.resource_name}", app);
+            return Created($"/api/somiod/{app.ResourceName}", app);
         }
 
-        // DELETE /api/somiod/{resourceName}
-        [HttpDelete, Route("{resourceName}")]
+        // POST CONTAINER (Cria Container na App)
+        [HttpPost, Route("{appName}")]
+        public IHttpActionResult PostContainer(string appName, [FromBody] Container container)
+        {
+            if (container == null) return BadRequest("Data required.");
+            if (string.IsNullOrWhiteSpace(container.ResourceName))
+                container.ResourceName = $"cont-{Guid.NewGuid().ToString().Substring(0, 8)}";
+
+            if (container.ResourceName.ToLower() == "subscription" || container.ResourceName.ToLower() == "subs")
+                return BadRequest("Invalid resource name.");
+
+            container.ParentAppName = appName;
+            container.CreationDatetime = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss");
+
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                string query = "INSERT INTO Container (resource_name, creation_datetime, parent_app_name) VALUES (@Name, @Date, @ParentApp)";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@Name", container.ResourceName);
+                    cmd.Parameters.AddWithValue("@Date", container.CreationDatetime);
+                    cmd.Parameters.AddWithValue("@ParentApp", container.ParentAppName);
+                    try { cmd.ExecuteNonQuery(); }
+                    catch (SqlException ex)
+                    {
+                        if (ex.Number == 2627) return Conflict();
+                        if (ex.Number == 547) return NotFound();
+                        throw;
+                    }
+                }
+            }
+            return Created($"/api/somiod/{appName}/{container.ResourceName}", container);
+        }
+
+        // DELETE APP
+        [HttpDelete, Route("{resourceName:regex(^(?!container|subscription).*$)}")]
         public IHttpActionResult Delete(string resourceName)
         {
             using (SqlConnection conn = new SqlConnection(connectionString))
@@ -77,14 +119,13 @@ namespace WebAPI.Controllers
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
                     cmd.Parameters.AddWithValue("@Name", resourceName);
-                    int rows = cmd.ExecuteNonQuery();
-                    if (rows == 0) return NotFound();
+                    if (cmd.ExecuteNonQuery() == 0) return NotFound();
                 }
             }
-            return StatusCode(System.Net.HttpStatusCode.NoContent);
+            return StatusCode(HttpStatusCode.NoContent);
         }
 
-        // ---------------- Métodos privados ----------------
+        // ---------------- HELPERS ----------------
 
         private IEnumerable<string> GetAllApplicationPaths()
         {
@@ -92,33 +133,50 @@ namespace WebAPI.Controllers
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
-                string query = "SELECT resource_name FROM Application";
-                using (SqlCommand cmd = new SqlCommand(query, conn))
+                using (SqlCommand cmd = new SqlCommand("SELECT resource_name FROM Application", conn))
                 using (SqlDataReader reader = cmd.ExecuteReader())
                 {
-                    while (reader.Read())
-                        paths.Add($"/api/somiod/{reader["resource_name"]}");
+                    while (reader.Read()) paths.Add($"/api/somiod/{reader["resource_name"]}");
                 }
             }
             return paths;
         }
 
-        private IEnumerable<ApplicationModel> GetAllApplications()
+        private IEnumerable<string> GetContainersForApp(string appName)
         {
-            List<ApplicationModel> apps = new List<ApplicationModel>();
+            List<string> paths = new List<string>();
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
-                string query = "SELECT resource_name, creation_datetime FROM Application";
+                string query = "SELECT resource_name FROM Container WHERE parent_app_name = @AppName";
                 using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@AppName", appName);
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                            paths.Add($"/api/somiod/{appName}/{reader["resource_name"]}");
+                    }
+                }
+            }
+            return paths;
+        }
+
+        private IEnumerable<Application> GetAllApplications()
+        {
+            List<Application> apps = new List<Application>();
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                using (SqlCommand cmd = new SqlCommand("SELECT resource_name, creation_datetime FROM Application", conn))
                 using (SqlDataReader reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
                     {
-                        apps.Add(new ApplicationModel
+                        apps.Add(new Application
                         {
-                            resource_name = reader["resource_name"].ToString(),
-                            creation_datetime = reader["creation_datetime"].ToString()
+                            ResourceName = reader["resource_name"].ToString(),
+                            CreationDatetime = reader["creation_datetime"].ToString()
                         });
                     }
                 }
@@ -126,37 +184,28 @@ namespace WebAPI.Controllers
             return apps;
         }
 
-        private ApplicationModel GetApplication(string resourceName)
+        private Application GetApplication(string name)
         {
-            ApplicationModel app = null;
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
-                string query = "SELECT resource_name, creation_datetime FROM Application WHERE resource_name = @Name";
-                using (SqlCommand cmd = new SqlCommand(query, conn))
+                using (SqlCommand cmd = new SqlCommand("SELECT resource_name, creation_datetime FROM Application WHERE resource_name = @Name", conn))
                 {
-                    cmd.Parameters.AddWithValue("@Name", resourceName);
+                    cmd.Parameters.AddWithValue("@Name", name);
                     using (SqlDataReader reader = cmd.ExecuteReader())
                     {
                         if (reader.Read())
                         {
-                            app = new ApplicationModel
+                            return new Application
                             {
-                                resource_name = reader["resource_name"].ToString(),
-                                creation_datetime = reader["creation_datetime"].ToString()
+                                ResourceName = reader["resource_name"].ToString(),
+                                CreationDatetime = reader["creation_datetime"].ToString()
                             };
                         }
                     }
                 }
             }
-            return app;
+            return null;
         }
-    }
-
-    // ---------------- Modelo ----------------
-    public class ApplicationModel
-    {
-        public string resource_name { get; set; }
-        public string creation_datetime { get; set; }
     }
 }
