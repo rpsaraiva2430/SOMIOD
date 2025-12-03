@@ -152,8 +152,8 @@ namespace WebAPI.Controllers
                     using (SqlDataReader reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
-                            // Subscrições podem ser acedidas via '/subscription/{nome}' ou '/subs/{nome}' dependendo da tua preferência
-                            paths.Add($"/api/somiod/{appName}/{containerName}/subscription/{reader["resource_name"]}");
+                            // Updated to use /subs/ virtual node as per requirements
+                            paths.Add($"/api/somiod/{appName}/{containerName}/subs/{reader["resource_name"]}");
                     }
                 }
             }
