@@ -124,6 +124,24 @@ namespace WebAPI.Controllers
             }
             return StatusCode(HttpStatusCode.NoContent);
         }
+        // UPDATE
+        [HttpPut, Route("{resourceName:regex(^(?!container|subscription).*$)}")]
+        public IHttpActionResult Put(string resourceName, [FromBody] Application app)
+        {
+            if (app == null) return BadRequest("Data required.");
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                string query = "UPDATE Application SET resource_name = @NewName WHERE resource_name = @OldName";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@NewName", app.ResourceName);
+                    cmd.Parameters.AddWithValue("@OldName", resourceName);
+                    if (cmd.ExecuteNonQuery() == 0) return NotFound();
+                }
+            }
+            return Ok(app);
+        }
 
         // ---------------- HELPERS ----------------
 
