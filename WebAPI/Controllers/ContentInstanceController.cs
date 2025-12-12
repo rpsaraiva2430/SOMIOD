@@ -158,6 +158,7 @@ namespace WebAPI.Controllers
                     System.Diagnostics.Debug.WriteLine($"[MQTT] A enviar para o canal: {channel}");
 
                     client.Publish(channel, Encoding.UTF8.GetBytes(message));
+                    System.Threading.Thread.Sleep(200); // 200ms de pausa
                     client.Disconnect();
                     System.Diagnostics.Debug.WriteLine("[MQTT] Enviado com sucesso!");
                 }
@@ -168,7 +169,6 @@ namespace WebAPI.Controllers
             }
             catch (Exception ex)
             {
-                // ISTO É O IMPORTANTE: Ver qual é o erro real
                 System.Diagnostics.Debug.WriteLine($"[MQTT ERRO CRÍTICO]: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"[MQTT STACK]: {ex.StackTrace}");
             }

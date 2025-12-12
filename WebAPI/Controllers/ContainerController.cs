@@ -244,6 +244,7 @@ namespace WebAPI.Controllers
                     }
                 }
             }
+            System.Diagnostics.Debug.WriteLine($"[Quantidade de subs]: {subs.Count}");
             return subs;
         }
 
@@ -251,9 +252,14 @@ namespace WebAPI.Controllers
         {
             try
             {
+                // Debug: Escreve na janela de Output do Visual Studio
+                System.Diagnostics.Debug.WriteLine($"[MQTT] A tentar ligar a: {endpoint}");
+
                 Uri uri = new Uri(endpoint);
-                // Usa uri.Host para garantir que funciona com 'localhost' ou IPs
-                MqttClient client = new MqttClient(uri.Host);
+                // Tenta forçar o IP se for localhost
+                string brokerIp = (uri.Host == "localhost") ? "127.0.0.1" : uri.Host;
+
+                MqttClient client = new MqttClient(brokerIp);
                 string clientId = Guid.NewGuid().ToString();
 
                 client.Connect(clientId);
@@ -261,11 +267,23 @@ namespace WebAPI.Controllers
                 if (client.IsConnected)
                 {
                     string channel = $"api/somiod/{appName}/{containerName}";
+                    System.Diagnostics.Debug.WriteLine($"[MQTT] A enviar para o canal: {channel}");
+
                     client.Publish(channel, Encoding.UTF8.GetBytes(message));
+                    System.Threading.Thread.Sleep(200); // 200ms de pausa
                     client.Disconnect();
+                    System.Diagnostics.Debug.WriteLine("[MQTT] Enviado com sucesso!");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[MQTT] Falha: Não conseguiu conectar.");
                 }
             }
-            catch (Exception) { /* Ignora erros de conexão */ }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MQTT ERRO CRÍTICO]: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[MQTT STACK]: {ex.StackTrace}");
+            }
         }
 
         private void SendHttpNotification(string url, string message)
