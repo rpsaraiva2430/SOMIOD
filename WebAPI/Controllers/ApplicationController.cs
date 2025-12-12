@@ -14,7 +14,7 @@ namespace WebAPI.Controllers
     {
         private readonly string connectionString = ConfigurationManager.ConnectionStrings["SomiodDatabase"].ConnectionString;
 
-        // GET ALL
+        // GET ALL (Lista todas as apps)
         [HttpGet, Route("")]
         public IHttpActionResult GetAll()
         {
@@ -53,8 +53,14 @@ namespace WebAPI.Controllers
         public IHttpActionResult Post([FromBody] Application app)
         {
             if (app == null) return BadRequest("Data required.");
+
+            // Gera nome se não vier preenchido
             if (string.IsNullOrWhiteSpace(app.ResourceName))
                 app.ResourceName = $"app-{Guid.NewGuid().ToString().Substring(0, 8)}";
+
+            // Impede uso de nomes reservados
+            if (app.ResourceName.ToLower() == "container" || app.ResourceName.ToLower() == "subscription")
+                return BadRequest("Invalid resource name (reserved keyword).");
 
             app.CreationDatetime = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss");
 
@@ -66,8 +72,9 @@ namespace WebAPI.Controllers
                 {
                     cmd.Parameters.AddWithValue("@Name", app.ResourceName);
                     cmd.Parameters.AddWithValue("@Date", app.CreationDatetime);
+
                     try { cmd.ExecuteNonQuery(); }
-                    catch (SqlException ex) when (ex.Number == 2627) { return Conflict(); }
+                    catch (SqlException ex) when (ex.Number == 2627) { return Conflict(); } // Nome duplicado
                 }
             }
             return Created($"/api/somiod/{app.ResourceName}", app);
@@ -78,6 +85,7 @@ namespace WebAPI.Controllers
         public IHttpActionResult PostContainer(string appName, [FromBody] Container container)
         {
             if (container == null) return BadRequest("Data required.");
+
             if (string.IsNullOrWhiteSpace(container.ResourceName))
                 container.ResourceName = $"cont-{Guid.NewGuid().ToString().Substring(0, 8)}";
 
@@ -96,11 +104,12 @@ namespace WebAPI.Controllers
                     cmd.Parameters.AddWithValue("@Name", container.ResourceName);
                     cmd.Parameters.AddWithValue("@Date", container.CreationDatetime);
                     cmd.Parameters.AddWithValue("@ParentApp", container.ParentAppName);
+
                     try { cmd.ExecuteNonQuery(); }
                     catch (SqlException ex)
                     {
-                        if (ex.Number == 2627) return Conflict();
-                        if (ex.Number == 547) return NotFound();
+                        if (ex.Number == 2627) return Conflict(); // Container já existe
+                        if (ex.Number == 547) return NotFound();  // App pai não existe
                         throw;
                     }
                 }
@@ -124,11 +133,14 @@ namespace WebAPI.Controllers
             }
             return StatusCode(HttpStatusCode.NoContent);
         }
-        // UPDATE
+
+        // UPDATE (PUT) - CORRIGIDO E MELHORADO
         [HttpPut, Route("{resourceName:regex(^(?!container|subscription).*$)}")]
         public IHttpActionResult Put(string resourceName, [FromBody] Application app)
         {
             if (app == null) return BadRequest("Data required.");
+            if (string.IsNullOrWhiteSpace(app.ResourceName)) return BadRequest("New resource name is required.");
+
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
@@ -137,7 +149,22 @@ namespace WebAPI.Controllers
                 {
                     cmd.Parameters.AddWithValue("@NewName", app.ResourceName);
                     cmd.Parameters.AddWithValue("@OldName", resourceName);
-                    if (cmd.ExecuteNonQuery() == 0) return NotFound();
+
+                    try
+                    {
+                        int rows = cmd.ExecuteNonQuery();
+                        if (rows == 0) return NotFound();
+                    }
+                    catch (SqlException ex)
+                    {
+                        // 2627: Violação de chave única (nome já existe)
+                        if (ex.Number == 2627) return Conflict();
+
+                        // 547: Violação de Constraint (se não tiveres ON UPDATE CASCADE na BD)
+                        if (ex.Number == 547) return BadRequest("Cannot rename application: dependencies exist.");
+
+                        throw;
+                    }
                 }
             }
             return Ok(app);

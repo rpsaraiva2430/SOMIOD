@@ -1,10 +1,13 @@
-﻿using System;
-using System.Collections.Generic; // Necessário para List<string>
+using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Web.Http;
+using uPLibrary.Networking.M2Mqtt;
+using uPLibrary.Networking.M2Mqtt.Messages;
 using WebAPI.Models;
 
 namespace WebAPI.Controllers
@@ -13,28 +16,23 @@ namespace WebAPI.Controllers
     {
         private readonly string connectionString = ConfigurationManager.ConnectionStrings["SomiodDatabase"].ConnectionString;
 
-        // GET CONTAINER (Ou Discovery de filhos)
+        // GET CONTAINER (Discovery e Dados)
         [HttpGet, Route("api/somiod/{appName}/{containerName}")]
         public IHttpActionResult Get(string appName, string containerName)
         {
-            // 1. DISCOVERY: Se o header pedir, lista os filhos (ContentInstances)
+            // 1. DISCOVERY
             if (Request.Headers.Contains("somiod-discovery"))
             {
                 var resType = Request.Headers.GetValues("somiod-discovery").FirstOrDefault();
 
-                // Se pedir 'content-instance', devolve a lista de URLs
                 if (resType == "content-instance")
-                {
                     return Ok(GetContentInstancesForContainer(appName, containerName));
-                }
-                // Se pedir 'subscription', devolve a lista de URLs
+
                 if (resType == "subscription")
-                {
                     return Ok(GetSubscriptionsForContainer(appName, containerName));
-                }
             }
 
-            // 2. GET NORMAL: Devolve os dados do Contentor
+            // 2. GET NORMAL
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
@@ -60,13 +58,13 @@ namespace WebAPI.Controllers
             return NotFound();
         }
 
-        // POST CONTENT-INSTANCE
+        // POST CONTENT-INSTANCE (Cria dados e envia Notificações)
         [HttpPost, Route("api/somiod/{appName}/{containerName}")]
         public IHttpActionResult PostContentInstance(string appName, string containerName, [FromBody] ContentInstance model)
         {
-            if (model == null) return BadRequest("Content instance data is required.");
-            
-            // Generate resource-name if not provided
+            if (model == null) return BadRequest("Data required.");
+
+            // Gerar nome se não existir
             if (string.IsNullOrWhiteSpace(model.ResourceName))
                 model.ResourceName = $"ci-{Guid.NewGuid().ToString().Substring(0, 8)}";
 
@@ -74,6 +72,7 @@ namespace WebAPI.Controllers
             model.ParentContainerName = containerName;
             model.CreationDatetime = DateTime.UtcNow;
 
+            // 1. Guardar na Base de Dados
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
@@ -87,141 +86,20 @@ namespace WebAPI.Controllers
                     cmd.Parameters.AddWithValue("@PCont", model.ParentContainerName);
                     cmd.Parameters.AddWithValue("@PApp", model.ParentAppName);
 
-                    try 
-                    { 
-                        cmd.ExecuteNonQuery(); 
-                    }
+                    try { cmd.ExecuteNonQuery(); }
                     catch (SqlException ex)
                     {
-                        if (ex.Number == 547) return NotFound(); // Parent container doesn't exist
-                        if (ex.Number == 2627) return Conflict(); // Duplicate resource name
+                        if (ex.Number == 547) return NotFound(); // App ou Container pai não existem
+                        if (ex.Number == 2627) return Conflict();
                         throw;
                     }
                 }
             }
 
-            // Return Created with location header and full resource properties
+            // 2. MOTOR DE NOTIFICAÇÕES: Dispara evento de Criação (evt: 1)
+            DispatchNotifications(appName, containerName, model, 1);
+
             return Created($"/api/somiod/{appName}/{containerName}/{model.ResourceName}", model);
-        }
-
-        // POST SUBSCRIPTION (Creation at container level)
-        [HttpPost, Route("api/somiod/{appName}/{containerName}/subs")]
-        public IHttpActionResult PostSubscription(string appName, string containerName, [FromBody] Subscription subscription)
-        {
-            if (subscription == null) return BadRequest("Subscription data is required.");
-            
-            // Generate resource-name if not provided
-            if (string.IsNullOrWhiteSpace(subscription.ResourceName))
-                subscription.ResourceName = $"sub-{Guid.NewGuid().ToString().Substring(0, 8)}";
-
-            // Validate evt values (1 for creation, 2 for deletion)
-            if (subscription.Evt != 1 && subscription.Evt != 2)
-                return BadRequest("evt property must be 1 (creation) or 2 (deletion).");
-
-            if (string.IsNullOrWhiteSpace(subscription.Endpoint))
-                return BadRequest("endpoint is required.");
-
-            subscription.ParentAppName = appName;
-            subscription.ParentContainerName = containerName;
-            subscription.CreationDatetime = DateTime.UtcNow;
-
-            using (SqlConnection conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                string query = "INSERT INTO Subscription (resource_name, creation_datetime, evt, endpoint, parent_container_name, parent_app_name) VALUES (@Name, @Date, @Evt, @Endpoint, @PCont, @PApp)";
-                using (SqlCommand cmd = new SqlCommand(query, conn))
-                {
-                    cmd.Parameters.AddWithValue("@Name", subscription.ResourceName);
-                    cmd.Parameters.AddWithValue("@Date", subscription.CreationDatetime.ToString("yyyy-MM-ddTHH:mm:ss"));
-                    cmd.Parameters.AddWithValue("@Evt", subscription.Evt);
-                    cmd.Parameters.AddWithValue("@Endpoint", subscription.Endpoint);
-                    cmd.Parameters.AddWithValue("@PCont", subscription.ParentContainerName);
-                    cmd.Parameters.AddWithValue("@PApp", subscription.ParentAppName);
-
-                    try 
-                    { 
-                        cmd.ExecuteNonQuery(); 
-                    }
-                    catch (SqlException ex)
-                    {
-                        if (ex.Number == 547) return NotFound(); // Parent container doesn't exist
-                        if (ex.Number == 2627) return Conflict(); // Duplicate resource name
-                        throw;
-                    }
-                }
-            }
-
-            // Return Created with location header and full resource properties
-            return Created($"/api/somiod/{appName}/{containerName}/subs/{subscription.ResourceName}", subscription);
-        }
-
-        // PUT CONTAINER (Update existing container)
-        [HttpPut, Route("api/somiod/{appName}/{containerName}")]
-        public IHttpActionResult Put(string appName, string containerName, [FromBody] Container container)
-        {
-            if (container == null) return BadRequest("Container data is required.");
-
-            // First check if the container exists and get its current data
-            Container existingContainer = null;
-            using (SqlConnection conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                string selectQuery = "SELECT resource_name, creation_datetime FROM Container WHERE resource_name = @Name AND parent_app_name = @ParentApp";
-                using (SqlCommand cmd = new SqlCommand(selectQuery, conn))
-                {
-                    cmd.Parameters.AddWithValue("@Name", containerName);
-                    cmd.Parameters.AddWithValue("@ParentApp", appName);
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            existingContainer = new Container
-                            {
-                                ResourceName = reader["resource_name"].ToString(),
-                                CreationDatetime = reader["creation_datetime"].ToString(),
-                                ParentAppName = appName
-                            };
-                        }
-                    }
-                }
-            }
-
-            if (existingContainer == null)
-                return NotFound();
-
-            // For containers, there are limited updatable properties
-            // In this implementation, we're essentially refreshing/confirming the container exists
-            // If you have additional properties to update in the future, add them here
-            
-            // Since containers only have resource-name (identifier) and creation-datetime (immutable),
-            // this PUT operation serves to verify the container exists and return its current state
-            // You could extend this to update additional metadata fields if they exist in your database
-
-            using (SqlConnection conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                // For now, we don't actually need to update anything since containers have minimal properties
-                // This query serves as a verification that the container still exists
-                string updateQuery = "SELECT COUNT(*) FROM Container WHERE resource_name = @Name AND parent_app_name = @ParentApp";
-                using (SqlCommand cmd = new SqlCommand(updateQuery, conn))
-                {
-                    cmd.Parameters.AddWithValue("@Name", containerName);
-                    cmd.Parameters.AddWithValue("@ParentApp", appName);
-                    
-                    int count = (int)cmd.ExecuteScalar();
-                    if (count == 0) return NotFound();
-                }
-            }
-
-            // Return the container with all its current properties
-            var updatedContainer = new Container
-            {
-                ResourceName = containerName,
-                CreationDatetime = existingContainer.CreationDatetime, // Keep original creation date
-                ParentAppName = appName
-            };
-
-            return Ok(updatedContainer);
         }
 
         // DELETE CONTAINER
@@ -242,7 +120,37 @@ namespace WebAPI.Controllers
             return StatusCode(HttpStatusCode.NoContent);
         }
 
-        // ---------------- HELPER METHODS PARA DISCOVERY ----------------
+        // UPDATE CONTAINER (PUT)
+        [HttpPut, Route("api/somiod/{appName}/{containerName}")]
+        public IHttpActionResult Put(string appName, string containerName, [FromBody] Container model)
+        {
+            if (model == null) return BadRequest("Data required.");
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                string query = "UPDATE Container SET resource_name = @NewName WHERE resource_name = @Name AND parent_app_name = @ParentApp";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@NewName", model.ResourceName ?? containerName);
+                    cmd.Parameters.AddWithValue("@Name", containerName);
+                    cmd.Parameters.AddWithValue("@ParentApp", appName);
+
+                    try
+                    {
+                        if (cmd.ExecuteNonQuery() == 0) return NotFound();
+                    }
+                    catch (SqlException ex)
+                    {
+                        if (ex.Number == 2627) return Conflict();
+                        if (ex.Number == 547) return BadRequest("Cannot rename container due to existing dependencies.");
+                        throw;
+                    }
+                }
+            }
+            return Ok(model);
+        }
+
+        // ---------------- MÉTODOS AUXILIARES (Discovery) ----------------
 
         private IEnumerable<string> GetContentInstancesForContainer(string appName, string containerName)
         {
@@ -279,12 +187,98 @@ namespace WebAPI.Controllers
                     using (SqlDataReader reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
-                            // Updated to use /subs/ virtual node as per requirements
                             paths.Add($"/api/somiod/{appName}/{containerName}/subs/{reader["resource_name"]}");
                     }
                 }
             }
             return paths;
+        }
+
+        // ---------------- MOTOR DE NOTIFICAÇÕES (Lógica MQTT e HTTP) ----------------
+
+        private void DispatchNotifications(string appName, string containerName, ContentInstance data, int eventType)
+        {
+            List<Subscription> subs = GetMatchingSubscriptions(appName, containerName, eventType);
+
+            if (subs.Count == 0) return;
+
+            string messageXML = $@"<notification>
+<event>{(eventType == 1 ? "creation" : "deletion")}</event>
+<resource>{data.ResourceName}</resource>
+<content>{data.Content}</content>
+<original-path>/api/somiod/{appName}/{containerName}/{data.ResourceName}</original-path>
+</notification>";
+
+            foreach (var sub in subs)
+            {
+                if (sub.Endpoint.ToLower().StartsWith("mqtt://"))
+                {
+                    SendMqttNotification(sub.Endpoint, appName, containerName, messageXML);
+                }
+                else if (sub.Endpoint.ToLower().StartsWith("http://") || sub.Endpoint.ToLower().StartsWith("https://"))
+                {
+                    SendHttpNotification(sub.Endpoint, messageXML);
+                }
+            }
+        }
+
+        private List<Subscription> GetMatchingSubscriptions(string appName, string containerName, int eventType)
+        {
+            List<Subscription> subs = new List<Subscription>();
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                string query = "SELECT endpoint FROM Subscription WHERE parent_app_name = @AppName AND parent_container_name = @ContName AND evt = @Evt";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@AppName", appName);
+                    cmd.Parameters.AddWithValue("@ContName", containerName);
+                    cmd.Parameters.AddWithValue("@Evt", eventType);
+
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            subs.Add(new Subscription { Endpoint = reader["endpoint"].ToString() });
+                        }
+                    }
+                }
+            }
+            return subs;
+        }
+
+        private void SendMqttNotification(string endpoint, string appName, string containerName, string message)
+        {
+            try
+            {
+                Uri uri = new Uri(endpoint);
+                // Usa uri.Host para garantir que funciona com 'localhost' ou IPs
+                MqttClient client = new MqttClient(uri.Host);
+                string clientId = Guid.NewGuid().ToString();
+
+                client.Connect(clientId);
+
+                if (client.IsConnected)
+                {
+                    string channel = $"api/somiod/{appName}/{containerName}";
+                    client.Publish(channel, Encoding.UTF8.GetBytes(message));
+                    client.Disconnect();
+                }
+            }
+            catch (Exception) { /* Ignora erros de conexão */ }
+        }
+
+        private void SendHttpNotification(string url, string message)
+        {
+            try
+            {
+                using (WebClient client = new WebClient())
+                {
+                    client.Headers[HttpRequestHeader.ContentType] = "application/xml";
+                    client.UploadString(url, message);
+                }
+            }
+            catch (Exception) { }
         }
     }
 }
