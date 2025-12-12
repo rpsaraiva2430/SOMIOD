@@ -242,6 +242,26 @@ namespace WebAPI.Controllers
             return StatusCode(HttpStatusCode.NoContent);
         }
 
+        // UDPATE
+        [HttpPut, Route("api/somiod/{appName}/{containerName}")]
+        public IHttpActionResult Put(string appName, string containerName, [FromBody] Container model)
+        {
+            if (model == null) return BadRequest("Data required.");
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+                string query = "UPDATE Container SET resource_name = @NewName WHERE resource_name = @Name AND parent_app_name = @ParentApp";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@NewName", model.ResourceName ?? containerName);
+                    cmd.Parameters.AddWithValue("@Name", containerName);
+                    cmd.Parameters.AddWithValue("@ParentApp", appName);
+                    if (cmd.ExecuteNonQuery() == 0) return NotFound();
+                }
+            }
+            return Ok(model);
+        }
+
         // ---------------- HELPER METHODS PARA DISCOVERY ----------------
 
         private IEnumerable<string> GetContentInstancesForContainer(string appName, string containerName)
