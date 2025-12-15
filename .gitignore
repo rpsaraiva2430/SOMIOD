@@ -358,3 +358,7 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 WebAPI/App_Data/Database_log.ldf
+
+WebAPI/App_Data/Database.mdf
+
+*.mdf
