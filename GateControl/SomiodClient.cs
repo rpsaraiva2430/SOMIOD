@@ -15,12 +15,12 @@ namespace GateControl
     public class SomiodClient : IDisposable
     {
         private readonly HttpClient _http;
-        private readonly string _baseUri;
+        private readonly string _baseUrl;
         private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
 
-        public SomiodClient(string baseUri, HttpMessageHandler handler = null)
+        public SomiodClient(string baseUrl, HttpMessageHandler handler = null)
         {
-            _baseUri = (baseUri ?? throw new ArgumentNullException(nameof(baseUri))).TrimEnd('/');
+            _baseUrl = (baseUrl ?? throw new ArgumentNullException(nameof(baseUrl))).TrimEnd('/');
             _http = handler == null ? new HttpClient() : new HttpClient(handler);
             _http.Timeout = TimeSpan.FromSeconds(30);
         }
@@ -33,7 +33,7 @@ namespace GateControl
         /// </summary>
         public async Task<(bool Success, string Response)> CreateApplicationBAsync(string containerName = "commands")
         {
-            var url = $"{_baseUri}/api/somiod";
+            var url = $"{_baseUrl}/api/somiod";
             // Create application payload
             var appPayload = new Dictionary<string, object>
             { 
@@ -54,7 +54,7 @@ namespace GateControl
             }
 
             // Create container under the application: POST -> /api/somiod/gate
-            var containerUrl = $"{_baseUri}/api/somiod/gate";
+            var containerUrl = $"{_baseUrl}/api/somiod/gate";
             var containerPayload = new Dictionary<string, object>
             {
                 { "resource-name", "gate-status" }
@@ -75,7 +75,7 @@ namespace GateControl
         /// </summary>
         public async Task<(bool Success, string Response)> OpenGateAsync()
         {
-            var url = $"{_baseUri}/api/somiod/gate/gate-status";
+            var url = $"{_baseUrl}/api/somiod/gate/gate-status";
 
             // The content field is now an object that will be serialized as JSON.
             var jsonContent = new Dictionary<string, object>
@@ -99,7 +99,7 @@ namespace GateControl
         /// </summary>
         public async Task<(bool Success, string Response)> CloseGateAsync()
         {
-            var url = $"{_baseUri}/api/somiod/gate-control/gate-status";
+            var url = $"{_baseUrl}/api/somiod/gate-control/gate-status";
 
             var jsonContent = new Dictionary<string, object>
             {

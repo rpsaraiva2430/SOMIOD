@@ -15,12 +15,12 @@ namespace GateControl
 
         private SomiodClient GetClient()
         {
-            var baseUri = txtBaseUri.Text?.Trim();
-            if (string.IsNullOrEmpty(baseUri))
+            var baseUrl = txtBaseUrl.Text?.Trim();
+            if (string.IsNullOrEmpty(baseUrl))
                 throw new InvalidOperationException("Base URL is required.");
             if (_client == null)
             {
-                _client = new SomiodClient(baseUri);
+                _client = new SomiodClient(baseUrl);
             }
             return _client;
         }

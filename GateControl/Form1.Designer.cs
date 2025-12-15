@@ -9,8 +9,8 @@
         private System.Windows.Forms.Button btnCreateApp;
         private System.Windows.Forms.Button btnOpenGate;
         private System.Windows.Forms.Button btnCloseGate;
-        private System.Windows.Forms.TextBox txtBaseUri;
-        private System.Windows.Forms.Label lblBaseUri;
+        private System.Windows.Forms.TextBox txtBaseUrl;
+        private System.Windows.Forms.Label lblBaseUrl;
         private System.Windows.Forms.TextBox txtStatus;
         private System.Windows.Forms.Label lblStatus;
 
@@ -38,8 +38,8 @@
             this.btnCreateApp = new System.Windows.Forms.Button();
             this.btnOpenGate = new System.Windows.Forms.Button();
             this.btnCloseGate = new System.Windows.Forms.Button();
-            this.txtBaseUri = new System.Windows.Forms.TextBox();
-            this.lblBaseUri = new System.Windows.Forms.Label();
+                    this.txtBaseUrl = new System.Windows.Forms.TextBox();
+            this.lblBaseUrl = new System.Windows.Forms.Label();
             this.txtStatus = new System.Windows.Forms.TextBox();
             this.lblStatus = new System.Windows.Forms.Label();
             this.SuspendLayout();
@@ -74,22 +74,22 @@
             this.btnCloseGate.UseVisualStyleBackColor = true;
             this.btnCloseGate.Click += new System.EventHandler(this.BtnCloseGate_Click);
             // 
-            // txtBaseUri
+            // txtBaseUrl
             // 
-            this.txtBaseUri.Location = new System.Drawing.Point(85, 18);
-            this.txtBaseUri.Name = "txtBaseUri";
-            this.txtBaseUri.Size = new System.Drawing.Size(320, 20);
-            this.txtBaseUri.TabIndex = 3;
-            this.txtBaseUri.Text = "http://localhost:8080";
+            this.txtBaseUrl.Location = new System.Drawing.Point(85, 18);
+            this.txtBaseUrl.Name = "txtBaseUrl";
+            this.txtBaseUrl.Size = new System.Drawing.Size(320, 20);
+            this.txtBaseUrl.TabIndex = 3;
+            this.txtBaseUrl.Text = "http://localhost:8080";
             // 
-            // lblBaseUri
+            // lblBaseUrl
             // 
-            this.lblBaseUri.AutoSize = true;
-            this.lblBaseUri.Location = new System.Drawing.Point(12, 21);
-            this.lblBaseUri.Name = "lblBaseUri";
-            this.lblBaseUri.Size = new System.Drawing.Size(52, 13);
-            this.lblBaseUri.TabIndex = 4;
-            this.lblBaseUri.Text = "Base URL";
+            this.lblBaseUrl.AutoSize = true;
+            this.lblBaseUrl.Location = new System.Drawing.Point(12, 21);
+            this.lblBaseUrl.Name = "lblBaseUrl";
+            this.lblBaseUrl.Size = new System.Drawing.Size(52, 13);
+            this.lblBaseUrl.TabIndex = 4;
+            this.lblBaseUrl.Text = "Base URL";
             // 
             // txtStatus
             // 
@@ -115,8 +115,8 @@
             this.ClientSize = new System.Drawing.Size(424, 281);
             this.Controls.Add(this.lblStatus);
             this.Controls.Add(this.txtStatus);
-            this.Controls.Add(this.lblBaseUri);
-            this.Controls.Add(this.txtBaseUri);
+            this.Controls.Add(this.lblBaseUrl);
+            this.Controls.Add(this.txtBaseUrl);
             this.Controls.Add(this.btnCloseGate);
             this.Controls.Add(this.btnOpenGate);
             this.Controls.Add(this.btnCreateApp);
