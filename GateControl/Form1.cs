@@ -17,7 +17,7 @@ namespace GateControl
         {
             var baseUri = txtBaseUri.Text?.Trim();
             if (string.IsNullOrEmpty(baseUri))
-                throw new InvalidOperationException("Base URI is required.");
+                throw new InvalidOperationException("Base URL is required.");
             if (_client == null)
             {
                 _client = new SomiodClient(baseUri);

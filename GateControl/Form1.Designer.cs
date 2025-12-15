@@ -89,7 +89,7 @@
             this.lblBaseUri.Name = "lblBaseUri";
             this.lblBaseUri.Size = new System.Drawing.Size(52, 13);
             this.lblBaseUri.TabIndex = 4;
-            this.lblBaseUri.Text = "Base URI";
+            this.lblBaseUri.Text = "Base URL";
             // 
             // txtStatus
             // 
