@@ -38,11 +38,12 @@ namespace GateControl
         private async void BtnCreateApp_Click(object sender, EventArgs e)
         {
             btnCreateApp.Enabled = btnOpenGate.Enabled = btnCloseGate.Enabled = false;
-            AppendStatus("Creating application 'gate-remote'...");
+            AppendStatus("Creating application 'gate'...");
             try
             {
                 var client = GetClient();
-                var (success, response) = await client.CreateApplicationBAsync().ConfigureAwait(false);
+                // Do NOT use ConfigureAwait(false) here - keep the UI synchronization context
+                var (success, response) = await client.CreateApplicationBAsync();
                 if (success)
                     AppendStatus("CreateApplicationB: success.");
                 else
@@ -54,7 +55,9 @@ namespace GateControl
             }
             finally
             {
-                btnCreateApp.Enabled = btnOpenGate.Enabled = btnCloseGate.Enabled = true;
+                // This runs on the UI thread because we didn't use ConfigureAwait(false)
+                btnOpenGate.Enabled = btnCloseGate.Enabled = true;
+                btnCreateApp.Enabled = false;
             }
         }
 
@@ -65,7 +68,8 @@ namespace GateControl
             try
             {
                 var client = GetClient();
-                var (success, response) = await client.OpenGateAsync().ConfigureAwait(false);
+                // Keep context so UI updates in finally run on UI thread
+                var (success, response) = await client.OpenGateAsync();
                 if (success)
                     AppendStatus("OpenGate: success.");
                 else
@@ -77,7 +81,8 @@ namespace GateControl
             }
             finally
             {
-                btnCreateApp.Enabled = btnOpenGate.Enabled = btnCloseGate.Enabled = true;
+                btnCloseGate.Enabled = true;
+                btnOpenGate.Enabled = false;
             }
         }
 
@@ -88,7 +93,8 @@ namespace GateControl
             try
             {
                 var client = GetClient();
-                var (success, response) = await client.CloseGateAsync().ConfigureAwait(false);
+                // Keep context so UI updates in finally run on UI thread
+                var (success, response) = await client.CloseGateAsync();
                 if (success)
                     AppendStatus("CloseGate: success.");
                 else
@@ -100,7 +106,8 @@ namespace GateControl
             }
             finally
             {
-                btnCreateApp.Enabled = btnOpenGate.Enabled = btnCloseGate.Enabled = true;
+                btnOpenGate.Enabled = true;
+                btnCloseGate.Enabled = false;
             }
         }
 

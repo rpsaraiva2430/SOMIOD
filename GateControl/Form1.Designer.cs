@@ -50,7 +50,7 @@
             this.btnCreateApp.Name = "btnCreateApp";
             this.btnCreateApp.Size = new System.Drawing.Size(120, 30);
             this.btnCreateApp.TabIndex = 0;
-            this.btnCreateApp.Text = "Create App (gate-remote)";
+            this.btnCreateApp.Text = "Create App Gate";
             this.btnCreateApp.UseVisualStyleBackColor = true;
             this.btnCreateApp.Click += new System.EventHandler(this.BtnCreateApp_Click);
             // 
@@ -63,6 +63,7 @@
             this.btnOpenGate.Text = "Open Gate";
             this.btnOpenGate.UseVisualStyleBackColor = true;
             this.btnOpenGate.Click += new System.EventHandler(this.BtnOpenGate_Click);
+            this.btnOpenGate.Enabled = false;
             // 
             // btnCloseGate
             // 
@@ -73,6 +74,7 @@
             this.btnCloseGate.Text = "Close Gate";
             this.btnCloseGate.UseVisualStyleBackColor = true;
             this.btnCloseGate.Click += new System.EventHandler(this.BtnCloseGate_Click);
+            this.btnCloseGate.Enabled = false;
             // 
             // txtBaseUrl
             // 
