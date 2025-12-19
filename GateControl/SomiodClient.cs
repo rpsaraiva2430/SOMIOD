@@ -11,7 +11,7 @@ namespace GateControl
     /// SOMIOD client that sends only JSON in HTTP bodies.
     /// The 'content' property of content-instances is a JSON-formatted string value and
     /// requests use header Content-Type: application/json.
-    /// Uses the endpoints present in your project files (gate-control / gate-status).
+    /// Uses the endpoints present in your project files (gate / gate-status).
     /// </summary>
     public class SomiodClient : IDisposable
     {
@@ -27,32 +27,53 @@ namespace GateControl
         }
 
         /// <summary>
-        /// Create Application B as specified:
-        /// POST -> /api/somiod
-        /// { "res-type": "application", "resource-name": "gate-remote" }
+        /// Create Application B and its container (idempotent).
+        /// POST -> /api/somiod                (application)
+        /// POST -> /api/somiod/{application}  (container)
+        /// Creates application "gate" and container "gate-status".
+        /// Treats HTTP 409 (already exists) as success.
         /// </summary>
         public async Task<(bool Success, string Response)> CreateApplicationBAsync()
         {
-            var url = $"{_baseUrl}/api/somiod";
-            var payload = new Dictionary<string, object>
+            var appUrl = $"{_baseUrl}/api/somiod";
+            var appPayload = new Dictionary<string, object>
             {
                 ["res-type"] = "application",
                 ["resource-name"] = "gate"
             };
 
-            var (success, response) = await PostJsonAsync(url, payload).ConfigureAwait(false);
+            var (appSuccess, appResponse) = await PostJsonAsync(appUrl, appPayload).ConfigureAwait(false);
 
-            // Treat HTTP 409 (already exists) as success for idempotence
-            if (!success && response.StartsWith("HTTP 409"))
-                return (true, "Application already exists (HTTP 409).");
+            // If application creation failed for a reason other than "already exists", return failure
+            if (!appSuccess && !appResponse.StartsWith("HTTP 409"))
+                return (false, $"Create application failed: {appResponse}");
 
-            return (success, response);
+            // If 409 or success, treat application as present — proceed to create container
+            string appResult = appSuccess ? $"Application created: {appResponse}" : "Application already exists (HTTP 409).";
+
+            // Create container under the application: POST -> /api/somiod/gate
+            var containerUrl = $"{_baseUrl}/api/somiod/gate";
+            var containerPayload = new Dictionary<string, object>
+            {
+                ["res-type"] = "container",
+                ["resource-name"] = "gate-status"
+            };
+
+            var (containerSuccess, containerResponse) = await PostJsonAsync(containerUrl, containerPayload).ConfigureAwait(false);
+
+            if (!containerSuccess && !containerResponse.StartsWith("HTTP 409"))
+            {
+                return (false, $"{appResult}; Create container failed: {containerResponse}");
+            }
+
+            string containerResult = containerSuccess ? $"Container created: {containerResponse}" : "Container already exists (HTTP 409).";
+
+            return (true, $"{appResult}; {containerResult}");
         }
 
         /// <summary>
-        /// Send OPEN command as JSON (string) inside the content property:
-        /// POST -> /api/somiod/gate-control/gate-status
-        /// content: serialized JSON string (e.g. "{\"command\":{\"action\":\"open\"}}")
+        /// Send OPEN command as JSON (string) inside the content property.
+        /// POST -> /api/somiod/gate/gate-status
         /// Uses a unique resource-name per content-instance to avoid HTTP 409 conflicts.
         /// </summary>
         public async Task<(bool Success, string Response)> OpenGateAsync()
@@ -64,10 +85,8 @@ namespace GateControl
                 ["command"] = new Dictionary<string, string> { ["action"] = "open" }
             };
 
-            // serialize the inner command to a JSON string so 'content' is a string value
             var contentString = _serializer.Serialize(commandObj);
 
-            // unique resource-name to avoid conflict on repeated posts
             var uniqueResourceName = "cmd-open-" + Guid.NewGuid().ToString("N");
 
             var payload = new Dictionary<string, object>
@@ -82,9 +101,8 @@ namespace GateControl
         }
 
         /// <summary>
-        /// Send CLOSE command as JSON (string) inside the content property:
-        /// POST -> /api/somiod/gate-control/gate-status
-        /// content: serialized JSON string (e.g. "{\"command\":{\"action\":\"close\"}}")
+        /// Send CLOSE command as JSON (string) inside the content property.
+        /// POST -> /api/somiod/gate/gate-status
         /// Uses a unique resource-name per content-instance to avoid HTTP 409 conflicts.
         /// </summary>
         public async Task<(bool Success, string Response)> CloseGateAsync()

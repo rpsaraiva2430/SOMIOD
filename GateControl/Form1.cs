@@ -38,16 +38,40 @@ namespace GateControl
         private async void BtnCreateApp_Click(object sender, EventArgs e)
         {
             btnCreateApp.Enabled = btnOpenGate.Enabled = btnCloseGate.Enabled = false;
-            AppendStatus("Creating application 'gate'...");
+            AppendStatus("Creating application 'gate' (and container 'gate-status')...");
             try
             {
                 var client = GetClient();
-                // Do NOT use ConfigureAwait(false) here - keep the UI synchronization context
+                // Keep UI context
                 var (success, response) = await client.CreateApplicationBAsync();
+
+                // Always append the raw response for debugging
+                AppendStatus("CreateApplicationB: raw response -> " + (response ?? "<null>"));
+
                 if (success)
-                    AppendStatus("CreateApplicationB: success.");
+                {
+                    AppendStatus("CreateApplicationB: reported success.");
+                }
                 else
-                    AppendStatus("CreateApplicationB: failed -> " + response);
+                {
+                    AppendStatus("CreateApplicationB: reported failure -> " + response);
+                }
+
+                // Additional debug: try to detect application/container parts in server message
+                if (!string.IsNullOrEmpty(response))
+                {
+                    if (response.IndexOf("Application", StringComparison.OrdinalIgnoreCase) >= 0)
+                        AppendStatus("Debug: server message contains 'Application'.");
+
+                    if (response.IndexOf("Container", StringComparison.OrdinalIgnoreCase) >= 0)
+                        AppendStatus("Debug: server message contains 'Container'.");
+
+                    if (response.IndexOf("already exists", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        response.IndexOf("HTTP 409", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        AppendStatus("Debug: resource already existed (idempotent create).");
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -55,7 +79,8 @@ namespace GateControl
             }
             finally
             {
-                // This runs on the UI thread because we didn't use ConfigureAwait(false)
+                // Keep app create button disabled after successful create attempt so user doesn't re-create repeatedly.
+                // Re-enable control buttons so user can send commands.
                 btnOpenGate.Enabled = btnCloseGate.Enabled = true;
                 btnCreateApp.Enabled = false;
             }
