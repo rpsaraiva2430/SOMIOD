@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebAPI", "WebAPI\WebAPI.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GateControl", "GateControl\GateControl.csproj", "{0EE76E60-29CA-4008-BAD9-47865C4D9DAF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GateStatus", "GateStatus\GateStatus.csproj", "{3E99C22A-F9E1-4F91-AC88-185575B2D505}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,6 +22,10 @@ Global
 		{0EE76E60-29CA-4008-BAD9-47865C4D9DAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0EE76E60-29CA-4008-BAD9-47865C4D9DAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0EE76E60-29CA-4008-BAD9-47865C4D9DAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E99C22A-F9E1-4F91-AC88-185575B2D505}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E99C22A-F9E1-4F91-AC88-185575B2D505}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E99C22A-F9E1-4F91-AC88-185575B2D505}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E99C22A-F9E1-4F91-AC88-185575B2D505}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
