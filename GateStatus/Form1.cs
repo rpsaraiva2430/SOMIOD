@@ -12,6 +12,7 @@ namespace GateStatus
     {
         private SomiodClient somiodClient;
         private HttpListener listener;
+        private XmlNotificationHandler xmlHandler;
         private bool isListening = false;
 
         public Form1()
@@ -25,6 +26,7 @@ namespace GateStatus
         {
             string somiodUrl = "http://localhost:57880";
             somiodClient = new SomiodClient(somiodUrl, Log);
+            xmlHandler = new XmlNotificationHandler(Log);
 
             Log("Starting SOMIOD configuration...");
 
@@ -36,6 +38,10 @@ namespace GateStatus
                 await somiodClient.CreateSubscriptionAsync();
 
                 StartNotificationServer();
+                
+                // Log existing notification count
+                int existingCount = xmlHandler.GetStoredNotificationCount();
+                Log($"Found {existingCount} existing notification files");
             }
             catch (Exception ex)
             {
@@ -71,8 +77,13 @@ namespace GateStatus
                     using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
                     {
                         string xml = await reader.ReadToEndAsync();
+                        
+                        // Process and save the XML notification
+                        bool xmlProcessed = xmlHandler.ProcessIncomingNotification(xml);
+                        
+                        // Parse and log the command
                         string msg = ParseXml(xml);
-                        Log("COMMAND RECEIVED: " + msg);
+                        Log($"COMMAND RECEIVED: {msg} (XML Saved: {xmlProcessed})");
                     }
                     context.Response.StatusCode = 200;
                     context.Response.Close();
@@ -107,6 +118,11 @@ namespace GateStatus
             {
                 listener.Abort();
             }
+        }
+
+        private void Form1_Load_1(object sender, EventArgs e)
+        {
+
         }
     }
 }

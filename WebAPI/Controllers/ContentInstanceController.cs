@@ -8,12 +8,19 @@ using System.Text;
 using System.Web.Http;
 using uPLibrary.Networking.M2Mqtt;
 using WebAPI.Models;
+using WebAPI.Services;
 
 namespace WebAPI.Controllers
 {
     public class ContentInstanceController : ApiController
     {
         private readonly string connectionString = ConfigurationManager.ConnectionStrings["SomiodDatabase"].ConnectionString;
+        private readonly XmlNotificationSerializer _xmlSerializer;
+
+        public ContentInstanceController()
+        {
+            _xmlSerializer = new XmlNotificationSerializer();
+        }
 
         // GET CONTENT INSTANCE
         [HttpGet, Route("api/somiod/{appName}/{containerName}/{contentInstanceName:regex(^(?!subs|subscription).*$)}")]
@@ -96,6 +103,11 @@ namespace WebAPI.Controllers
         private void DispatchNotifications(string appName, string containerName, ContentInstance data, int eventType)
         {
             List<Subscription> subs = GetMatchingSubscriptions(appName, containerName, eventType);
+
+            // NOVO: Serialize notification to XML file with validation
+            bool xmlSerialized = _xmlSerializer.SerializeAndValidateNotification(appName, containerName, data, eventType);
+            System.Diagnostics.Debug.WriteLine($"[XML Notification] Serialization {(xmlSerialized ? "successful" : "failed")} for {appName}/{containerName}/{data.ResourceName}");
+
             if (subs.Count == 0) return;
 
             string messageXML = $@"<notification>

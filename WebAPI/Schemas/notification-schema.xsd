@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://somiod.local/notification"
+           xmlns:tns="http://somiod.local/notification"
+           elementFormDefault="qualified">
+
+  <!-- Root notification element -->
+  <xs:element name="notification">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="event" type="tns:eventType"/>
+        <xs:element name="resource" type="xs:string"/>
+        <xs:element name="content" type="xs:string"/>
+        <xs:element name="original-path" type="xs:string"/>
+        <xs:element name="timestamp" type="xs:dateTime"/>
+        <xs:element name="application" type="xs:string"/>
+        <xs:element name="container" type="xs:string"/>
+      </xs:sequence>
+      <xs:attribute name="id" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Event type enumeration -->
+  <xs:simpleType name="eventType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="creation"/>
+      <xs:enumeration value="deletion"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

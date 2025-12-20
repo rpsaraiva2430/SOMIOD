@@ -9,12 +9,19 @@ using System.Web.Http;
 using uPLibrary.Networking.M2Mqtt;
 using uPLibrary.Networking.M2Mqtt.Messages;
 using WebAPI.Models;
+using WebAPI.Services;
 
 namespace WebAPI.Controllers
 {
     public class ContainerController : ApiController
     {
         private readonly string connectionString = ConfigurationManager.ConnectionStrings["SomiodDatabase"].ConnectionString;
+        private readonly XmlNotificationSerializer _xmlSerializer;
+
+        public ContainerController()
+        {
+            _xmlSerializer = new XmlNotificationSerializer();
+        }
 
         // GET CONTAINER (Discovery e Dados)
         [HttpGet, Route("api/somiod/{appName}/{containerName}")]
@@ -194,11 +201,15 @@ namespace WebAPI.Controllers
             return paths;
         }
 
-        // ---------------- MOTOR DE NOTIFICAÇÕES (Lógica MQTT e HTTP) ----------------
+        // ---------------- MOTOR DE NOTIFICAÇÕES (Lógica MQTT e HTTP + XML) ----------------
 
         private void DispatchNotifications(string appName, string containerName, ContentInstance data, int eventType)
         {
             List<Subscription> subs = GetMatchingSubscriptions(appName, containerName, eventType);
+
+            // NOVO: Serialize notification to XML file with validation
+            bool xmlSerialized = _xmlSerializer.SerializeAndValidateNotification(appName, containerName, data, eventType);
+            System.Diagnostics.Debug.WriteLine($"[XML Notification] Serialization {(xmlSerialized ? "successful" : "failed")} for {appName}/{containerName}/{data.ResourceName}");
 
             if (subs.Count == 0) return;
 

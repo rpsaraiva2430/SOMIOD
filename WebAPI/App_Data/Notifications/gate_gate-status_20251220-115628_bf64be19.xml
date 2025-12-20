@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<notification id="bf64be19-c40a-459b-b818-90d651720e2d" xmlns="http://somiod.local/notification">
+  <event>creation</event>
+  <resource>cmd-open-7b8354a12b864e6dbcb412a0314fd690</resource>
+  <content>{"command":{"action":"open"}}</content>
+  <original-path>/api/somiod/gate/gate-status/cmd-open-7b8354a12b864e6dbcb412a0314fd690</original-path>
+  <timestamp>2025-12-20T11:56:28Z</timestamp>
+  <application>gate</application>
+  <container>gate-status</container>
+</notification>
